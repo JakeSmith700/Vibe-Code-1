@@ -1,8 +1,7 @@
-class Fish {
-    constructor(x, y) {
-        this.x = x;
-        this.y = y;
-        this.z = 0; // Z position (depth) from -100 (far) to 100 (near)
+class Fish extends TankObject {
+    constructor(x, y, z, tankManager, animData) {
+        super(x, y, z, animData.frameWidth * 0.25, animData.frameHeight * 0.25);
+        this.tankManager = tankManager;
         this.velocityX = 0;
         this.velocityY = 0;
         this.velocityZ = 0;
@@ -14,18 +13,43 @@ class Fish {
         this.animationTimer = 0;
         this.targetX = x;
         this.targetY = y;
-        this.targetZ = 0;
-        this.baseScale = 0.25; // Reduced base scale to match new frame size
+        this.targetZ = z;
         this.wobbleAmplitude = 2;
         this.wobbleFrequency = 0.03;
         this.wobbleTimer = 0;
         this.idleTimer = 0;
         this.minIdleTime = 60;
-        this.depthChangeThreshold = 0.3; // When to switch to front/back animations
-        this.lastAnimation = null; // Track animation changes
+        this.depthChangeThreshold = 0.3;
+        this.sprite = fishSprite;
+        this.loaded = true;
+        this.animationData = animData;
     }
 
-    update() {
+    pickNewTarget() {
+        let attempts = 0;
+        const maxAttempts = 10;
+        
+        while (attempts < maxAttempts) {
+            const pos = this.tankManager.getSafePosition(this.width, this.height);
+            
+            // Check if the path to this position is blocked
+            if (!this.tankManager.isPositionBlocked(pos.x, pos.y, pos.z, this.width, this.height)) {
+                this.targetX = pos.x;
+                this.targetY = pos.y;
+                this.targetZ = pos.z;
+                return true;
+            }
+            attempts++;
+        }
+        
+        // If we couldn't find a safe position, just stay where we are
+        this.targetX = this.x;
+        this.targetY = this.y;
+        this.targetZ = this.z;
+        return false;
+    }
+
+    update(deltaTime) {
         const dx = this.targetX - this.x;
         const dy = this.targetY - this.y;
         const dz = this.targetZ - this.z;
@@ -33,10 +57,7 @@ class Fish {
 
         if (distance < 1) {
             if (this.idleTimer >= this.minIdleTime) {
-                const margin = 150;
-                this.targetX = margin + Math.random() * (canvas.width - 2 * margin);
-                this.targetY = margin + Math.random() * (canvas.height - 2 * margin);
-                this.targetZ = -100 + Math.random() * 200;
+                this.pickNewTarget();
                 this.idleTimer = 0;
             } else {
                 this.idleTimer++;
@@ -55,16 +76,20 @@ class Fish {
         this.velocityY += (targetVelocityY - this.velocityY) * acceleration;
         this.velocityZ += (targetVelocityZ - this.velocityZ) * acceleration;
 
-        // Update position
-        this.x += this.velocityX;
-        this.y += this.velocityY;
-        this.z += this.velocityZ;
+        // Calculate new position
+        const newX = this.x + this.velocityX;
+        const newY = this.y + this.velocityY;
+        const newZ = this.z + this.velocityZ;
 
-        // Keep fish within bounds
-        const margin = 50;
-        this.x = Math.max(margin, Math.min(canvas.width - margin, this.x));
-        this.y = Math.max(margin, Math.min(canvas.height - margin, this.y));
-        this.z = Math.max(-100, Math.min(100, this.z));
+        // Check if new position would be blocked
+        if (!this.tankManager.isPositionBlocked(newX, newY, newZ, this.width, this.height)) {
+            this.x = newX;
+            this.y = newY;
+            this.z = newZ;
+        } else {
+            // If blocked, pick a new target
+            this.pickNewTarget();
+        }
 
         // Natural swimming motion
         this.wobbleTimer += this.wobbleFrequency;
@@ -82,68 +107,56 @@ class Fish {
             this.direction = this.velocityX < 0 ? 1 : -1;
         }
 
-        // Store previous animation
-        const prevAnimation = this.currentAnimation;
-
         // Determine primary movement direction
         const isMovingZ = absVelocityZ > this.depthChangeThreshold;
         const isMovingX = absVelocityX > movementThreshold;
         const isIdle = absVelocityX < movementThreshold && absVelocityY < movementThreshold && absVelocityZ < movementThreshold;
 
         // Choose animation based on movement
-        let newAnimation;
         if (isIdle) {
-            newAnimation = this.z > 0 ? 'idle_front' : 'idle_back';
+            this.currentAnimation = this.z > 0 ? 'idle_front' : 'idle_back';
         } else if (isMovingZ) {
-            newAnimation = this.velocityZ > 0 ? 'swim_front' : 'swim_back';
+            this.currentAnimation = this.velocityZ > 0 ? 'swim_front' : 'swim_back';
         } else if (isMovingX) {
-            newAnimation = 'swim_left';
-        } else {
-            newAnimation = this.currentAnimation; // Keep current animation if no clear direction
-        }
-
-        // Handle animation transition
-        if (newAnimation !== this.currentAnimation) {
-            this.currentAnimation = newAnimation;
-            // Reset frame index when changing animations to prevent out-of-bounds
-            this.frameIndex = 0;
-            this.animationTimer = 0;
+            this.currentAnimation = 'swim_left';
         }
 
         // Update animation frame
         this.animationTimer += this.animationSpeed;
         if (this.animationTimer >= 1) {
             this.animationTimer = 0;
-            const frames = animationData.animations[this.currentAnimation];
-            if (frames && frames.length > 0) { // Safety check
+            const frames = this.animationData.animations[this.currentAnimation];
+            if (frames && frames.length > 0) {
                 this.frameIndex = (this.frameIndex + 1) % frames.length;
             }
         }
     }
 
     draw(ctx) {
-        // Safety checks
-        if (!animationData.animations[this.currentAnimation]) {
-            console.error('Invalid animation:', this.currentAnimation);
+        if (!this.sprite || !this.loaded || !this.animationData) return;
+
+        // Safety checks for animation data
+        const animations = this.animationData.animations[this.currentAnimation];
+        if (!animations || !animations.length) {
+            // If current animation is invalid, fall back to swim_left
+            this.currentAnimation = 'swim_left';
+            this.frameIndex = 0;
             return;
         }
 
-        const frames = animationData.animations[this.currentAnimation];
-        if (!frames || frames.length === 0) {
-            console.error('No frames for animation:', this.currentAnimation);
-            return;
-        }
-
-        const frame = frames[this.frameIndex];
-        const frameData = animationData.frameData[frame];
+        // Ensure frameIndex is within bounds
+        this.frameIndex = this.frameIndex % animations.length;
+        const frame = animations[this.frameIndex];
+        
+        const frameData = this.animationData.frameData[frame];
         if (!frameData) {
-            console.error('No frame data for index:', frame);
+            console.error('Missing frame data for frame:', frame);
             return;
         }
-
+        
         // Scale based on depth
         const depthScale = 1 + (this.z / 200);
-        const currentScale = this.baseScale * depthScale;
+        const currentScale = depthScale * 0.25; // Base scale is 0.25
         
         ctx.save();
         ctx.translate(this.x, this.y);
@@ -158,82 +171,17 @@ class Fish {
         }
 
         // Draw the fish
-        const scaledWidth = animationData.frameWidth * currentScale;
-        const scaledHeight = animationData.frameHeight * currentScale;
+        const scaledWidth = this.animationData.frameWidth * currentScale;
+        const scaledHeight = this.animationData.frameHeight * currentScale;
         
-        try {
-            ctx.drawImage(
-                fishSprite,
-                frameData.x, frameData.y,
-                animationData.frameWidth, animationData.frameHeight,
-                -scaledWidth/2, -scaledHeight/2,
-                scaledWidth, scaledHeight
-            );
-        } catch (error) {
-            console.error('Draw error:', error, {
-                animation: this.currentAnimation,
-                frame: this.frameIndex,
-                frameData: frameData
-            });
-        }
+        ctx.drawImage(
+            this.sprite,
+            frameData.x, frameData.y,
+            this.animationData.frameWidth, this.animationData.frameHeight,
+            -scaledWidth/2, -scaledHeight/2,
+            scaledWidth, scaledHeight
+        );
         
         ctx.restore();
     }
-}
-
-// Canvas setup
-const canvas = document.getElementById('fishTank');
-const ctx = canvas.getContext('2d');
-
-// Enable image smoothing for better scaling
-ctx.imageSmoothingEnabled = true;
-ctx.imageSmoothingQuality = 'high';
-
-// Load assets
-const fishSprite = new Image();
-fishSprite.src = '/assets/clownfish/clownfish.png';
-
-// Debug logging
-console.log('Loading fish sprite from:', fishSprite.src);
-
-let animationData = null;
-let fish = null;
-
-// Load animation data
-fetch('/assets/clownfish/animation.json')
-    .then(response => {
-        console.log('Animation JSON response:', response);
-        return response.json();
-    })
-    .then(data => {
-        console.log('Loaded animation data:', data);
-        animationData = data;
-        // Create fish once animation data is loaded
-        fish = new Fish(canvas.width/2, canvas.height/2);
-        console.log('Created fish at:', fish.x, fish.y);
-    })
-    .catch(error => {
-        console.error('Error loading animation data:', error);
-    });
-
-// Animation loop
-function animate() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    if (fish) {
-        fish.update();
-        fish.draw(ctx);
-    }
-    
-    requestAnimationFrame(animate);
-}
-
-// Start animation when sprite is loaded
-fishSprite.onload = () => {
-    console.log('Fish sprite loaded successfully');
-    animate();
-};
-
-fishSprite.onerror = (error) => {
-    console.error('Error loading fish sprite:', error);
-}; 
+} 

@@ -10,6 +10,10 @@ socketio = SocketIO(app)
 def index():
     return render_template('index.html')
 
+@app.route('/generate-sand')
+def generate_sand():
+    return render_template('generate_sand.html')
+
 # Add route to serve files from assets directory
 @app.route('/assets/<path:filename>')
 def serve_asset(filename):

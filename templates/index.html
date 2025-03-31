@@ -23,6 +23,11 @@
 </head>
 <body>
     <canvas id="fishTank" width="800" height="600"></canvas>
+    
+    <!-- Load classes in dependency order -->
+    <script src="{{ url_for('static', filename='js/tank_objects.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/tank_manager.js') }}"></script>
     <script src="{{ url_for('static', filename='js/fish.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
 </html> 
