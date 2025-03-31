@@ -1,8 +1,9 @@
 class TankManager {
-    constructor(canvas) {
-        console.log('TankManager: Initializing with canvas', canvas.width, 'x', canvas.height);
-        this.canvas = canvas;
-        this.ctx = canvas.getContext('2d');
+    constructor(width, height, ctx) {
+        console.log('TankManager: Initializing with dimensions', width, 'x', height);
+        this.width = width;
+        this.height = height;
+        this.ctx = ctx;
         this.objects = [];
         this.lastFrameTime = 0;
         
@@ -16,7 +17,7 @@ class TankManager {
     }
 
     createBackground() {
-        this.background = this.ctx.createLinearGradient(0, 0, 0, this.canvas.height);
+        this.background = this.ctx.createLinearGradient(0, 0, 0, this.height);
         this.background.addColorStop(0, '#1a3c8c');   // Dark blue at top
         this.background.addColorStop(1, '#2a5298');   // Lighter blue at bottom
     }
@@ -26,7 +27,7 @@ class TankManager {
         this.objects.push(object);
         // Sort objects by z-index whenever we add a new one
         this.sortObjects();
-        console.log('TankManager: Current objects:', this.objects.map(o => o.constructor.name));
+        console.log('TankManager: Objects in scene:', this.objects.map(o => o.constructor.name));
     }
 
     removeObject(object) {
@@ -38,7 +39,12 @@ class TankManager {
 
     sortObjects() {
         // Sort objects by z-index (back to front)
-        this.objects.sort((a, b) => a.z - b.z);
+        // Make sure SandBed is always rendered first
+        this.objects.sort((a, b) => {
+            if (a instanceof SandBed) return -1;
+            if (b instanceof SandBed) return 1;
+            return a.z - b.z;
+        });
     }
 
     update(currentTime) {
@@ -57,18 +63,33 @@ class TankManager {
 
     draw() {
         // Clear canvas and draw background
+        this.ctx.clearRect(0, 0, this.width, this.height);
         this.ctx.fillStyle = this.background;
-        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        this.ctx.fillRect(0, 0, this.width, this.height);
 
         // Draw all objects in order (back to front)
         for (const object of this.objects) {
-            console.log('TankManager: Drawing object', object.constructor.name);
+            console.log('TankManager: Drawing', object.constructor.name);
             object.draw(this.ctx);
         }
     }
 
     // Helper method to check if an object at a position would be blocked by scenery
     isPositionBlocked(x, y, z, width, height) {
+        // Keep fish within canvas bounds with margin
+        const margin = 50;
+        if (x - width/2 < margin || x + width/2 > this.width - margin ||
+            y - height/2 < margin || y + height/2 > this.height - margin) {
+            console.log('Position blocked: Out of bounds', {x, y, z});
+            return true;
+        }
+
+        // Keep fish within reasonable depth bounds
+        if (z < -100 || z > 100) {
+            console.log('Position blocked: Out of depth bounds', z);
+            return true;
+        }
+
         const testObject = {
             x, y, z,
             width, height,
@@ -80,6 +101,7 @@ class TankManager {
             if (object instanceof Castle && // Only check collision with certain objects
                 !testObject.isBehind(object) && // Only if we're not behind it
                 object.intersects(testObject)) {
+                console.log('Position blocked: Collision with castle');
                 return true;
             }
         }
@@ -89,9 +111,9 @@ class TankManager {
     // Get safe position for new objects
     getSafePosition(width, height) {
         const margin = 50;
-        const x = margin + Math.random() * (this.canvas.width - 2 * margin);
-        const y = margin + Math.random() * (this.canvas.height - 2 * margin);
-        const z = -100 + Math.random() * 200;
+        const x = margin + Math.random() * (this.width - 2 * margin);
+        const y = margin + Math.random() * (this.height - 2 * margin);
+        const z = -50 + Math.random() * 100; // Reduced depth range for easier navigation
         return { x, y, z };
     }
 } 

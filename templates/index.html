@@ -4,9 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fish Tank</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
     <style>
         body {
             margin: 0;
+            padding: 20px;
             overflow: hidden;
             background: #1a1a1a;
             display: flex;
@@ -19,15 +21,19 @@
             border-radius: 10px;
             box-shadow: 0 0 20px rgba(0,0,0,0.3);
         }
+        canvas {
+            background: linear-gradient(180deg, #4a90e2 0%, #357abd 100%);
+        }
     </style>
 </head>
 <body>
     <canvas id="fishTank" width="800" height="600"></canvas>
     
     <!-- Load classes in dependency order -->
-    <script src="{{ url_for('static', filename='js/tank_objects.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/tank_manager.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/fish.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="/static/js/tank_objects.js"></script>
+    <script src="/static/js/tank_manager.js"></script>
+    <script src="/static/js/fish.js"></script>
+    <script src="/static/js/tank_frame.js"></script>
+    <script src="/static/js/main.js"></script>
 </body>
 </html> 

@@ -1,0 +1,76 @@
+{
+  "types": [
+    {
+      "name": "seaweed",
+      "frames": [
+        {
+          "x": 0,
+          "y": 0,
+          "width": 341,
+          "height": 341
+        },
+        {
+          "x": 341,
+          "y": 0,
+          "width": 341,
+          "height": 341
+        },
+        {
+          "x": 682,
+          "y": 0,
+          "width": 341,
+          "height": 341
+        }
+      ]
+    },
+    {
+      "name": "clam",
+      "frames": [
+        {
+          "x": 0,
+          "y": 341,
+          "width": 341,
+          "height": 341
+        },
+        {
+          "x": 341,
+          "y": 341,
+          "width": 341,
+          "height": 341
+        },
+        {
+          "x": 682,
+          "y": 341,
+          "width": 341,
+          "height": 341
+        }
+      ]
+    },
+    {
+      "name": "rock",
+      "frames": [
+        {
+          "x": 0,
+          "y": 682,
+          "width": 341,
+          "height": 341
+        },
+        {
+          "x": 341,
+          "y": 682,
+          "width": 341,
+          "height": 341
+        },
+        {
+          "x": 682,
+          "y": 682,
+          "width": 341,
+          "height": 341
+        }
+      ]
+    }
+  ],
+  "frameWidth": 341,
+  "frameHeight": 341,
+  "frameDuration": 200
+}

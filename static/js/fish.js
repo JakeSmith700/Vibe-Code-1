@@ -1,7 +1,6 @@
 class Fish extends TankObject {
-    constructor(x, y, z, tankManager, animData) {
-        super(x, y, z, animData.frameWidth * 0.25, animData.frameHeight * 0.25);
-        this.tankManager = tankManager;
+    constructor(x, y, animData) {
+        super(x, y, 0, animData.frameWidth * 0.25, animData.frameHeight * 0.25);
         this.velocityX = 0;
         this.velocityY = 0;
         this.velocityZ = 0;
@@ -13,43 +12,45 @@ class Fish extends TankObject {
         this.animationTimer = 0;
         this.targetX = x;
         this.targetY = y;
-        this.targetZ = z;
+        this.targetZ = 0;
         this.wobbleAmplitude = 2;
         this.wobbleFrequency = 0.03;
         this.wobbleTimer = 0;
         this.idleTimer = 0;
         this.minIdleTime = 60;
         this.depthChangeThreshold = 0.3;
-        this.sprite = fishSprite;
-        this.loaded = true;
+        this.sprite = new Image();
+        this.sprite.src = '/assets/clownfish/clownfish.png';
+        this.sprite.onload = () => {
+            this.loaded = true;
+            console.log('Fish: Sprite loaded successfully');
+        };
         this.animationData = animData;
+        this.lastUpdateTime = performance.now();
+        this.stuckTimer = 0;
+        this.lastPosition = { x, y, z: 0 };
+        this.avoidanceForceX = 0;
+        this.avoidanceForceY = 0;
+        this.avoidanceForceZ = 0;
     }
 
     pickNewTarget() {
-        let attempts = 0;
-        const maxAttempts = 10;
+        // Generate new random target within reasonable bounds
+        const margin = 50;
+        const maxDepth = 100;
         
-        while (attempts < maxAttempts) {
-            const pos = this.tankManager.getSafePosition(this.width, this.height);
-            
-            // Check if the path to this position is blocked
-            if (!this.tankManager.isPositionBlocked(pos.x, pos.y, pos.z, this.width, this.height)) {
-                this.targetX = pos.x;
-                this.targetY = pos.y;
-                this.targetZ = pos.z;
-                return true;
-            }
-            attempts++;
-        }
+        this.targetX = margin + Math.random() * (800 - 2 * margin); // Assuming 800px width
+        this.targetY = margin + Math.random() * (600 - 2 * margin); // Assuming 600px height
+        this.targetZ = -maxDepth + Math.random() * (2 * maxDepth);
         
-        // If we couldn't find a safe position, just stay where we are
-        this.targetX = this.x;
-        this.targetY = this.y;
-        this.targetZ = this.z;
-        return false;
+        console.log('Fish: New target set to', this.targetX.toFixed(2), this.targetY.toFixed(2), this.targetZ.toFixed(2));
     }
 
     update(deltaTime) {
+        const currentTime = performance.now();
+        const timeSinceLastUpdate = currentTime - this.lastUpdateTime;
+        
+        // Calculate distance to target
         const dx = this.targetX - this.x;
         const dy = this.targetY - this.y;
         const dz = this.targetZ - this.z;
@@ -65,38 +66,70 @@ class Fish extends TankObject {
             return;
         }
 
-        // Calculate acceleration towards target
-        const acceleration = 0.05;
+        // Calculate base target velocity
+        const acceleration = 0.1;
         const targetVelocityX = (dx / distance) * this.speed;
         const targetVelocityY = (dy / distance) * this.speed;
         const targetVelocityZ = (dz / distance) * this.speed;
 
-        // Smooth velocity changes
-        this.velocityX += (targetVelocityX - this.velocityX) * acceleration;
-        this.velocityY += (targetVelocityY - this.velocityY) * acceleration;
-        this.velocityZ += (targetVelocityZ - this.velocityZ) * acceleration;
+        // Apply avoidance forces (decay over time)
+        const avoidanceDecay = 0.95;
+        this.avoidanceForceX *= avoidanceDecay;
+        this.avoidanceForceY *= avoidanceDecay;
+        this.avoidanceForceZ *= avoidanceDecay;
+
+        // Smooth velocity changes with avoidance forces
+        const finalTargetVelocityX = targetVelocityX + this.avoidanceForceX;
+        const finalTargetVelocityY = targetVelocityY + this.avoidanceForceY;
+        const finalTargetVelocityZ = targetVelocityZ + this.avoidanceForceZ;
+
+        this.velocityX += (finalTargetVelocityX - this.velocityX) * acceleration;
+        this.velocityY += (finalTargetVelocityY - this.velocityY) * acceleration;
+        this.velocityZ += (finalTargetVelocityZ - this.velocityZ) * acceleration;
 
         // Calculate new position
         const newX = this.x + this.velocityX;
         const newY = this.y + this.velocityY;
         const newZ = this.z + this.velocityZ;
 
-        // Check if new position would be blocked
-        if (!this.tankManager.isPositionBlocked(newX, newY, newZ, this.width, this.height)) {
+        // Simple boundary checking
+        const margin = 50;
+        const maxDepth = 100;
+        const isBlocked = 
+            newX < margin || newX > 800 - margin ||
+            newY < margin || newY > 600 - margin ||
+            newZ < -maxDepth || newZ > maxDepth;
+
+        if (!isBlocked) {
             this.x = newX;
             this.y = newY;
             this.z = newZ;
         } else {
-            // If blocked, pick a new target
-            this.pickNewTarget();
+            // Apply avoidance force
+            const centerX = 400; // Assuming 800px width
+            const centerY = 300; // Assuming 600px height
+            
+            this.avoidanceForceX = (centerX - this.x) * 0.01;
+            this.avoidanceForceY = (centerY - this.y) * 0.01;
+            this.avoidanceForceZ = -this.velocityZ; // Reverse z direction
+
+            // Pick new target if really stuck
+            if (Math.abs(this.velocityX) < 0.1 && Math.abs(this.velocityY) < 0.1) {
+                this.pickNewTarget();
+            }
         }
 
         // Natural swimming motion
         this.wobbleTimer += this.wobbleFrequency;
-        const wobbleOffset = Math.sin(this.wobbleTimer) * this.wobbleAmplitude;
+        const speed = Math.sqrt(this.velocityX * this.velocityX + this.velocityY * this.velocityY);
+        const wobbleOffset = Math.sin(this.wobbleTimer) * this.wobbleAmplitude * (speed / this.speed);
         this.y += wobbleOffset * 0.1;
 
-        // Calculate movement magnitudes
+        // Update last position and time
+        this.lastPosition = { x: this.x, y: this.y, z: this.z };
+        this.lastUpdateTime = currentTime;
+
+        // Animation updates
         const absVelocityX = Math.abs(this.velocityX);
         const absVelocityY = Math.abs(this.velocityY);
         const absVelocityZ = Math.abs(this.velocityZ);
@@ -122,7 +155,7 @@ class Fish extends TankObject {
         }
 
         // Update animation frame
-        this.animationTimer += this.animationSpeed;
+        this.animationTimer += this.animationSpeed * (speed / this.speed);
         if (this.animationTimer >= 1) {
             this.animationTimer = 0;
             const frames = this.animationData.animations[this.currentAnimation];

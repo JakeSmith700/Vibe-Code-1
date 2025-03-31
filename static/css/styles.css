@@ -1,0 +1,98 @@
+.tank-control-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: 2px solid rgba(255, 255, 255, 0.4);
+    border-radius: 8px;
+    color: white;
+    padding: 8px 16px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.tank-control-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: scale(1.05);
+}
+
+.tank-control-btn.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.tank-control-btn.disabled:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: none;
+}
+
+.tank-volume-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+    outline: none;
+}
+
+.tank-volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    background: white;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.tank-volume-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+}
+
+.tank-volume-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: white;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: none;
+}
+
+.tank-volume-slider::-moz-range-thumb:hover {
+    transform: scale(1.2);
+}
+
+.credits-popup {
+    font-family: Arial, sans-serif;
+    line-height: 1.6;
+}
+
+.credits-close-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: none;
+    border: none;
+    color: white;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: background-color 0.3s ease;
+}
+
+.credits-close-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.credits-content {
+    margin-top: 20px;
+    padding-right: 20px;
+} 

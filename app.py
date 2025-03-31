@@ -19,6 +19,11 @@ def generate_sand():
 def serve_asset(filename):
     return send_from_directory('assets', filename)
 
+# Add route to serve credits.txt from root directory
+@app.route('/credits.txt')
+def serve_credits():
+    return send_from_directory('.', 'credits.txt')
+
 @app.route('/debug')
 def debug():
     return {
@@ -28,7 +33,8 @@ def debug():
         'files': {
             'static/js/fish.js': os.path.exists(os.path.join(app.root_path, 'static', 'js', 'fish.js')),
             'assets/clownfish/clownfish.png': os.path.exists(os.path.join(app.root_path, 'assets', 'clownfish', 'clownfish.png')),
-            'assets/clownfish/animation.json': os.path.exists(os.path.join(app.root_path, 'assets', 'clownfish', 'animation.json'))
+            'assets/clownfish/animation.json': os.path.exists(os.path.join(app.root_path, 'assets', 'clownfish', 'animation.json')),
+            'credits.txt': os.path.exists(os.path.join(app.root_path, 'credits.txt'))
         }
     }
 
