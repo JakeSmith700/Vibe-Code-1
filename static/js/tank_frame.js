@@ -15,6 +15,7 @@ class TankFrame {
         };
         this.canFeed = true;
         this.feedTimeout = null;
+        this.feedCooldown = false;
         
         // Load available tracks
         this.loadTracks();
@@ -25,6 +26,9 @@ class TankFrame {
         // Load credits
         this.credits = '';
         this.loadCredits();
+        
+        // Check for existing cooldown in cookies
+        this.checkFeedCooldown();
     }
 
     loadTracks() {
@@ -99,7 +103,7 @@ class TankFrame {
         const feedButton = document.createElement('button');
         feedButton.innerHTML = '🐟 Feed';
         feedButton.className = 'tank-control-btn';
-        feedButton.onclick = () => this.feedFish();
+        feedButton.onclick = () => this.handleFeed();
         this.feedButton = feedButton;
 
         // Create credits button
@@ -247,6 +251,85 @@ class TankFrame {
             }
         };
         updateButtonText();
+    }
+
+    // Cookie helper functions
+    setCookie(name, value, minutes) {
+        const date = new Date();
+        date.setTime(date.getTime() + (minutes * 60 * 1000));
+        const expires = `expires=${date.toUTCString()}`;
+        document.cookie = `${name}=${value};${expires};path=/`;
+    }
+
+    getCookie(name) {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(';').shift();
+    }
+
+    checkFeedCooldown() {
+        const feedCooldownEnd = this.getCookie('feedCooldownEnd');
+        if (feedCooldownEnd) {
+            const now = new Date().getTime();
+            const endTime = parseInt(feedCooldownEnd);
+            
+            if (now < endTime) {
+                // Still in cooldown
+                this.feedCooldown = true;
+                this.feedButton.classList.add('disabled');
+                this.startCooldownTimer(endTime - now);
+            } else {
+                // Cooldown expired
+                this.feedButton.textContent = '🐟 Feed';
+                this.feedButton.classList.remove('disabled');
+                this.feedCooldown = false;
+                this.setCookie('feedCooldownEnd', '', -1); // Remove expired cookie
+            }
+        }
+    }
+
+    startCooldownTimer(remainingTime) {
+        const minutesLeft = Math.floor(remainingTime / 60000);
+        let secondsLeft = Math.floor((remainingTime % 60000) / 1000);
+        
+        const updateCooldown = () => {
+            if (secondsLeft === 0) {
+                if (minutesLeft === 0) {
+                    this.feedButton.textContent = '🐟 Feed';
+                    this.feedButton.classList.remove('disabled');
+                    this.feedCooldown = false;
+                    this.setCookie('feedCooldownEnd', '', -1); // Remove expired cookie
+                    return;
+                }
+                secondsLeft = 59;
+            } else {
+                secondsLeft--;
+            }
+            
+            this.feedButton.textContent = `Feed (${minutesLeft}:${secondsLeft.toString().padStart(2, '0')})`;
+            setTimeout(updateCooldown, 1000);
+        };
+        
+        updateCooldown();
+    }
+
+    handleFeed() {
+        if (this.feedCooldown) return;
+        
+        // Emit feed event
+        const feedEvent = new CustomEvent('feedFish');
+        document.dispatchEvent(feedEvent);
+        
+        // Start cooldown
+        this.feedCooldown = true;
+        this.feedButton.classList.add('disabled');
+        
+        // Set cookie for 15 minutes
+        const cooldownEnd = new Date().getTime() + (15 * 60 * 1000);
+        this.setCookie('feedCooldownEnd', cooldownEnd.toString(), 15);
+        
+        // Start the countdown timer
+        this.startCooldownTimer(15 * 60 * 1000);
     }
 
     draw(ctx) {

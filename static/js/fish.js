@@ -32,6 +32,14 @@ class Fish extends TankObject {
         this.avoidanceForceX = 0;
         this.avoidanceForceY = 0;
         this.avoidanceForceZ = 0;
+        this.detectionRadius = Infinity; // Unlimited detection radius
+        this.eatRadius = 25; // Larger eat radius
+        this.currentFood = null;
+        this.chaseSpeed = 3; // Reduced from 4
+        this.normalSpeed = 1; // Back to normal speed
+        this.chaseAcceleration = 0.3; // Reduced from 0.5
+        this.foodDetectionDelay = 1000; // 1 second delay before detecting food
+        this.lastFoodCheck = 0;
     }
 
     pickNewTarget() {
@@ -50,6 +58,41 @@ class Fish extends TankObject {
         const currentTime = performance.now();
         const timeSinceLastUpdate = currentTime - this.lastUpdateTime;
         
+        // If we have food to chase, make it our target
+        if (this.currentFood && !this.currentFood.eaten) {
+            this.targetX = this.currentFood.x;
+            this.targetY = this.currentFood.y;
+            
+            // Move faster when chasing food
+            this.speed = this.chaseSpeed;
+            
+            // Check if we're close enough to eat
+            const dx = this.currentFood.x - this.x;
+            const dy = this.currentFood.y - this.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            if (distance < this.eatRadius) {
+                // Eat the food and create a heart
+                this.currentFood.eaten = true;
+                this.currentFood = null;
+                
+                // Emit event for heart creation
+                const event = new CustomEvent('createHeart', {
+                    detail: {
+                        x: this.x,
+                        y: this.y - this.height/2
+                    }
+                });
+                document.dispatchEvent(event);
+                
+                // Pick a new random target
+                this.pickNewTarget();
+                this.speed = this.normalSpeed;
+            }
+        } else {
+            this.speed = this.normalSpeed;
+        }
+
         // Calculate distance to target
         const dx = this.targetX - this.x;
         const dy = this.targetY - this.y;
@@ -66,8 +109,8 @@ class Fish extends TankObject {
             return;
         }
 
-        // Calculate base target velocity
-        const acceleration = 0.1;
+        // Calculate base target velocity with increased acceleration when chasing food
+        const acceleration = this.currentFood ? this.chaseAcceleration : 0.1;
         const targetVelocityX = (dx / distance) * this.speed;
         const targetVelocityY = (dy / distance) * this.speed;
         const targetVelocityZ = (dz / distance) * this.speed;
@@ -216,5 +259,39 @@ class Fish extends TankObject {
         );
         
         ctx.restore();
+    }
+
+    detectFood(foodParticles) {
+        const currentTime = performance.now();
+        
+        // Only check for food every second
+        if (currentTime - this.lastFoodCheck < this.foodDetectionDelay) {
+            return;
+        }
+        this.lastFoodCheck = currentTime;
+
+        if (this.currentFood && !this.currentFood.eaten) return; // Already chasing food
+
+        // Find the closest food particle (no distance limit)
+        let closestFood = null;
+        let closestDistance = Infinity;
+
+        for (const food of foodParticles) {
+            if (food.eaten) continue;
+
+            const dx = food.x - this.x;
+            const dy = food.y - this.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance < closestDistance) {
+                closestDistance = distance;
+                closestFood = food;
+            }
+        }
+
+        if (closestFood) {
+            this.currentFood = closestFood;
+            console.log('Fish detected food at distance:', closestDistance); // Debug log
+        }
     }
 } 

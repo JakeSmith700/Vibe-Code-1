@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fish Tank</title>
+    <title>Virtual Fishtank</title>
     <link rel="stylesheet" href="/static/css/styles.css">
     <style>
         body {
@@ -27,8 +27,10 @@
     </style>
 </head>
 <body>
-    <canvas id="fishTank" width="800" height="600"></canvas>
-    
+    <div class="tank-container">
+        <canvas id="tankCanvas"></canvas>
+    </div>
+
     <!-- Load classes in dependency order -->
     <script src="/static/js/tank_objects.js"></script>
     <script src="/static/js/tank_manager.js"></script>

@@ -14,6 +14,19 @@ class TankManager {
         // Create gradient background
         this.createBackground();
         console.log('TankManager: Initialization complete');
+
+        this.foodParticles = [];
+        this.hearts = [];
+        this.maxFoodParticles = 3; // Maximum number of food particles allowed
+        
+        // Listen for feed button clicks
+        document.addEventListener('feedFish', () => this.dropFood());
+        
+        // Listen for heart creation events
+        document.addEventListener('createHeart', (e) => {
+            const heart = new Heart(e.detail.x, e.detail.y);
+            this.hearts.push(heart);
+        });
     }
 
     createBackground() {
@@ -52,9 +65,27 @@ class TankManager {
         const deltaTime = currentTime - this.lastFrameTime;
         this.lastFrameTime = currentTime;
 
-        // Update all objects
+        // Update food particles
+        this.foodParticles = this.foodParticles.filter(food => {
+            food.update(deltaTime);
+            // Remove food if it's eaten or falls below tank
+            return !food.eaten && food.y < this.height;
+        });
+
+        // Update hearts
+        this.hearts = this.hearts.filter(heart => {
+            heart.update(deltaTime);
+            // Remove hearts that have faded out
+            return heart.opacity > 0;
+        });
+
+        // Update all objects and check for food
         for (const object of this.objects) {
             object.update(deltaTime);
+            // If it's a fish, make it check for food
+            if (object instanceof Fish) {
+                object.detectFood(this.foodParticles);
+            }
         }
 
         // Re-sort objects if any z-positions have changed
@@ -71,6 +102,16 @@ class TankManager {
         for (const object of this.objects) {
             console.log('TankManager: Drawing', object.constructor.name);
             object.draw(this.ctx);
+        }
+
+        // Draw food particles
+        for (const food of this.foodParticles) {
+            food.draw(this.ctx);
+        }
+
+        // Draw hearts on top
+        for (const heart of this.hearts) {
+            heart.draw(this.ctx);
         }
     }
 
@@ -115,5 +156,34 @@ class TankManager {
         const y = margin + Math.random() * (this.height - 2 * margin);
         const z = -50 + Math.random() * 100; // Reduced depth range for easier navigation
         return { x, y, z };
+    }
+
+    dropFood() {
+        // Only drop food if we're under the limit
+        if (this.foodParticles.length >= this.maxFoodParticles) {
+            console.log('Maximum food particles reached');
+            return;
+        }
+
+        // Calculate how many particles we can still add
+        const remainingSlots = this.maxFoodParticles - this.foodParticles.length;
+        const numParticles = Math.min(remainingSlots, Math.floor(Math.random() * 5) + 2); // Random 2-6 particles
+        
+        // Tank dimensions for random positioning
+        const tankWidth = this.width;
+        const tankHeight = this.height;
+        const maxDepth = 100; // Maximum depth for food particles
+        
+        for (let i = 0; i < numParticles; i++) {
+            // Random position across the tank
+            const x = Math.random() * tankWidth;
+            const y = 50 + Math.random() * 100; // Start between 50-150 from top
+            const z = -maxDepth + Math.random() * (2 * maxDepth); // Random depth
+            
+            const food = new FoodParticle(x, y);
+            food.z = z; // Set the depth
+            this.foodParticles.push(food);
+            console.log('Dropped food particle:', i + 1, 'of', numParticles, 'at x:', x, 'y:', y, 'z:', z);
+        }
     }
 } 

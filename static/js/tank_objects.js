@@ -346,4 +346,82 @@ class SeabedDecoration extends TankObject {
             console.error('SeabedDecoration: Error during rendering:', error);
         }
     }
+}
+
+class FoodParticle extends TankObject {
+    constructor(x, y) {
+        super(x, y, 0, 10, 10); // Slightly larger size for food
+        this.wobbleSpeed = 0.3; // Slower wobble
+        this.wobbleAmount = 3; // More pronounced wobble
+        this.fallSpeed = 0.3; // Slower fall speed
+        this.eaten = false;
+    }
+
+    update(deltaTime) {
+        // Wobble horizontally
+        this.x += Math.sin(this.wobbleSpeed * deltaTime) * this.wobbleAmount;
+        
+        // Fall downward
+        this.y += this.fallSpeed;
+    }
+
+    draw(ctx) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.width/2, 0, Math.PI * 2);
+        ctx.fillStyle = '#FFA500'; // Orange color for food
+        ctx.fill();
+        // Add a glow effect to make food more visible
+        ctx.shadowColor = '#FFA500';
+        ctx.shadowBlur = 5;
+        ctx.fill();
+        ctx.restore();
+    }
+}
+
+class Heart extends TankObject {
+    constructor(x, y) {
+        super(x, y, 0, 30, 30); // Larger size for hearts
+        this.velocityY = -1; // Float upward
+        this.opacity = 1;
+        this.fadeSpeed = 0.005; // Slower fade
+        this.sprite = new Image();
+        this.sprite.src = '/assets/heart/heart.png';
+        this.sprite.onload = () => {
+            this.loaded = true;
+            console.log('Heart: Sprite loaded successfully');
+        };
+    }
+
+    update(deltaTime) {
+        // Move upward
+        this.y += this.velocityY;
+        
+        // Fade out
+        this.opacity -= this.fadeSpeed;
+    }
+
+    draw(ctx) {
+        if (!this.sprite || !this.loaded) return;
+
+        ctx.save();
+        
+        // Set up transparency
+        ctx.globalAlpha = this.opacity;
+        
+        // Add a glow effect
+        ctx.shadowColor = '#FF69B4';
+        ctx.shadowBlur = 10;
+        
+        // Draw the heart
+        ctx.drawImage(
+            this.sprite,
+            this.x - this.width/2,
+            this.y - this.height/2,
+            this.width,
+            this.height
+        );
+        
+        ctx.restore();
+    }
 } 
