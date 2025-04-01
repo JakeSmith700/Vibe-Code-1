@@ -11,8 +11,10 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error('Failed to get canvas context');
         return;
     }
+
+    let devicePixelRatio;
     
-    // Set canvas size to match container
+    // Set canvas size to match container with proper device pixel ratio
     function resizeCanvas() {
         const container = canvas.parentElement;
         if (!container) {
@@ -21,21 +23,32 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         // Get device pixel ratio and container size
-        const dpr = window.devicePixelRatio || 1;
+        devicePixelRatio = window.devicePixelRatio || 1;
         const rect = container.getBoundingClientRect();
         
-        // Set canvas size accounting for pixel ratio
-        canvas.width = rect.width * dpr;
-        canvas.height = rect.height * dpr;
+        // Set canvas dimensions for rendering (physical pixels)
+        canvas.width = rect.width * devicePixelRatio;
+        canvas.height = rect.height * devicePixelRatio;
         
-        // Set display size
+        // Set display size (CSS pixels)
         canvas.style.width = `${rect.width}px`;
         canvas.style.height = `${rect.height}px`;
         
-        // Scale context to account for pixel ratio
-        ctx.scale(dpr, dpr);
+        // Log the canvas dimensions
+        console.log(`Canvas resized - Display: ${rect.width}x${rect.height}, Actual: ${canvas.width}x${canvas.height}, DPR: ${devicePixelRatio}`);
         
-        console.log('Canvas resized to:', canvas.width, 'x', canvas.height, 'with DPR:', dpr);
+        // Update tank frame and manager with new dimensions
+        if (window.tankFrame) {
+            tankFrame.width = canvas.width;
+            tankFrame.height = canvas.height;
+        }
+        
+        // Update all objects with new canvas size if tankManager exists
+        if (window.tankManager) {
+            tankManager.width = canvas.width;
+            tankManager.height = canvas.height;
+            tankManager.sortObjects(); // Resort objects after resize
+        }
     }
     
     // Initial resize
@@ -48,8 +61,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const tankFrame = new TankFrame(canvas, canvas.width, canvas.height);
     const tankManager = new TankManager(canvas);
     
+    // Store references for resize handler
+    window.tankFrame = tankFrame;
+    window.tankManager = tankManager;
+    
     // Load fish animation data first
-    fetch('assets/clownfish/animation.json')
+    fetch('/assets/clownfish/animation.json')
         .then(response => {
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -66,37 +83,48 @@ document.addEventListener('DOMContentLoaded', () => {
             const sandBed = new SandBed(canvas.width, canvas.height);
             tankManager.addObject(sandBed);
             
-            // Add seabed decorations
+            // Add seabed decorations with positions relative to canvas size
             // Add some seaweed clusters
-            for (let i = 0; i < 3; i++) {
-                const x = canvas.width * (0.2 + i * 0.3); // Spread across the tank
-                const y = canvas.height - 120; // Just above the sand
-                const seaweed = new SeabedDecoration(x, y, 0); // type 0 is seaweed
+            const seaweedPositions = [0.15, 0.4, 0.75]; // Spread across tank
+            seaweedPositions.forEach(xPos => {
+                const x = canvas.width * xPos;
+                const y = canvas.height * 0.85; // Position relative to height
+                const seaweed = new SeabedDecoration(x, y, 0);
                 tankManager.addObject(seaweed);
-            }
+            });
             
             // Add some clams
-            for (let i = 0; i < 2; i++) {
-                const x = canvas.width * (0.3 + i * 0.4); // Spread between seaweed
-                const y = canvas.height - 80; // On the sand
-                const clam = new SeabedDecoration(x, y, 1); // type 1 is clam
+            const clamPositions = [0.25, 0.6, 0.85]; // Between seaweed
+            clamPositions.forEach(xPos => {
+                const x = canvas.width * xPos;
+                const y = canvas.height * 0.9; // Position relative to height
+                const clam = new SeabedDecoration(x, y, 1);
                 tankManager.addObject(clam);
-            }
+            });
             
             // Add some rocks
-            for (let i = 0; i < 2; i++) {
-                const x = canvas.width * (0.25 + i * 0.5); // Spread out
-                const y = canvas.height - 70; // On the sand
-                const rock = new SeabedDecoration(x, y, 2); // type 2 is rock
+            const rockPositions = [0.1, 0.35, 0.65, 0.9]; // Spread out
+            rockPositions.forEach(xPos => {
+                const x = canvas.width * xPos;
+                const y = canvas.height * 0.92; // Position relative to height
+                const rock = new SeabedDecoration(x, y, 2);
                 tankManager.addObject(rock);
-            }
+            });
             
-            // Add castle next (mid-ground)
-            const castle = new Castle(canvas.width * 0.7, canvas.height * 0.6, 50);
+            // Add castle (mid-ground)
+            const castle = new Castle(
+                canvas.width * 0.75,    // X position (right side)
+                canvas.height * 0.7,    // Y position (near bottom)
+                -20                     // Z depth
+            );
             tankManager.addObject(castle);
             
             // Add fish last (foreground)
-            const fish = new Fish(canvas.width / 2, canvas.height / 2, animData);
+            const fish = new Fish(
+                canvas.width * 0.5,     // X position (center)
+                canvas.height * 0.5,     // Y position (center)
+                animData
+            );
             tankManager.addObject(fish);
             
             // Start animation loop
@@ -110,25 +138,37 @@ document.addEventListener('DOMContentLoaded', () => {
     let lastFrameTime = performance.now();
     
     function animate(currentTime) {
+        // Handle DPR changes (mostly for testing)
+        if (devicePixelRatio !== window.devicePixelRatio) {
+            resizeCanvas();
+        }
+        
+        // Calculate actual elapsed time in milliseconds
         const deltaTime = currentTime - lastFrameTime;
         lastFrameTime = currentTime;
+        
+        // Clear the entire canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Scale all drawing operations to match device pixel ratio
+        ctx.save();
+        ctx.scale(devicePixelRatio, devicePixelRatio);
         
         // Draw frame and background
         tankFrame.draw(ctx);
         
-        // Set up clipping region for tank contents
-        ctx.save();
+        // Set up clipping region for tank contents (using logical coordinates)
         ctx.beginPath();
         ctx.rect(
-            tankFrame.frameThickness,
-            tankFrame.frameThickness,
-            canvas.width - 2 * tankFrame.frameThickness,
-            canvas.height - 2 * tankFrame.frameThickness
+            tankFrame.frameThickness / devicePixelRatio,
+            tankFrame.frameThickness / devicePixelRatio,
+            (canvas.width - 2 * tankFrame.frameThickness) / devicePixelRatio,
+            (canvas.height - 2 * tankFrame.frameThickness) / devicePixelRatio
         );
         ctx.clip();
         
         // Update and draw tank contents
-        tankManager.update(currentTime);
+        tankManager.update(deltaTime);
         tankManager.draw(ctx);
         
         ctx.restore();

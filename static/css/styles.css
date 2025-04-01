@@ -95,4 +95,120 @@
 .credits-content {
     margin-top: 20px;
     padding-right: 20px;
+}
+
+/* Mobile orientation prompt */
+.orientation-prompt {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.9);
+    color: white;
+    font-size: 1.2em;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 20px;
+    z-index: 2000;
+    flex-direction: column;
+    gap: 15px;
+}
+
+/* Mobile-specific styles */
+@media (max-width: 768px) {
+    .tank-control-btn {
+        font-size: 16px;
+        padding: 8px 12px;
+        min-width: 44px;
+        min-height: 44px;
+        margin: 0 5px;
+    }
+    
+    .tank-volume-slider {
+        width: 80px;
+        height: 30px;
+    }
+    
+    .credits-popup {
+        font-size: 14px;
+        line-height: 1.4;
+    }
+    
+    .credits-close-btn {
+        width: 44px;
+        height: 44px;
+        font-size: 24px;
+    }
+}
+
+/* Landscape mode optimizations */
+@media (orientation: landscape) and (max-height: 500px) {
+    .tank-control-btn {
+        padding: 5px 8px;
+        min-height: 36px;
+    }
+    
+    .tank-volume-slider {
+        height: 24px;
+    }
+    
+    .credits-popup {
+        max-height: 85vh;
+    }
+}
+
+/* Prevent text selection on mobile */
+.tank-control-btn,
+.credits-close-btn {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+    touch-action: manipulation;
+}
+
+/* Improved touch slider styling */
+.tank-volume-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+    outline: none;
+    transition: background 0.2s;
+}
+
+.tank-volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 24px;
+    height: 24px;
+    background: white;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.tank-volume-slider::-moz-range-thumb {
+    width: 24px;
+    height: 24px;
+    background: white;
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+}
+
+/* Active states for touch */
+.tank-control-btn:active,
+.credits-close-btn:active {
+    transform: scale(0.95);
+    opacity: 0.8;
+}
+
+/* Ensure canvas is responsive */
+canvas {
+    max-width: 100%;
+    height: auto;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
 } 

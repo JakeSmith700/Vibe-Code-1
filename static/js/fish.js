@@ -1,6 +1,13 @@
 class Fish extends TankObject {
     constructor(x, y, animData) {
-        super(x, y, 0, animData.frameWidth * 0.25, animData.frameHeight * 0.25);
+        // Make fish size relative to screen size
+        const baseWidth = animData.frameWidth * 0.25;
+        const baseHeight = animData.frameHeight * 0.25;
+        super(x, y, 0, baseWidth, baseHeight);
+        
+        this.baseWidth = baseWidth;
+        this.baseHeight = baseHeight;
+        
         this.velocityX = 0;
         this.velocityY = 0;
         this.velocityZ = 0;
@@ -40,15 +47,48 @@ class Fish extends TankObject {
         this.chaseAcceleration = 0.3; // Reduced from 0.5
         this.foodDetectionDelay = 1000; // 1 second delay before detecting food
         this.lastFoodCheck = 0;
+        this.canvasWidth = 0;
+        this.canvasHeight = 0;
+    }
+
+    updateScale(canvasWidth, canvasHeight) {
+        this.canvasWidth = canvasWidth;
+        this.canvasHeight = canvasHeight;
+        
+        // Base scale factor from canvas size (use smaller dimension)
+        const baseScale = Math.min(canvasWidth, canvasHeight) / 800;
+        
+        // Make sure fish is visible on any screen size
+        const minScale = 0.5; // Minimum scale to ensure fish is visible
+        const scaleMultiplier = Math.max(minScale, baseScale);
+        
+        // Adjust fish size with scale and depth
+        const depthScale = 1 + (this.z / 200);
+        const finalScale = scaleMultiplier * depthScale;
+        
+        // Update current dimensions
+        this.width = this.baseWidth * finalScale;
+        this.height = this.baseHeight * finalScale;
+        
+        // Update eat radius based on canvas size
+        this.eatRadius = Math.max(25, Math.min(canvasWidth, canvasHeight) * 0.05);
+        
+        return finalScale;
     }
 
     pickNewTarget() {
         // Generate new random target within reasonable bounds
-        const margin = 50;
+        const margin = this.width;
         const maxDepth = 100;
         
-        this.targetX = margin + Math.random() * (800 - 2 * margin); // Assuming 800px width
-        this.targetY = margin + Math.random() * (600 - 2 * margin); // Assuming 600px height
+        // Use actual canvas dimensions for boundaries
+        if (this.canvasWidth === 0 || this.canvasHeight === 0) {
+            console.error('Fish: Canvas dimensions not set properly');
+            return;
+        }
+        
+        this.targetX = margin + Math.random() * (this.canvasWidth - 2 * margin);
+        this.targetY = margin + Math.random() * (this.canvasHeight - 2 * margin);
         this.targetZ = -maxDepth + Math.random() * (2 * maxDepth);
         
         console.log('Fish: New target set to', this.targetX.toFixed(2), this.targetY.toFixed(2), this.targetZ.toFixed(2));
@@ -135,12 +175,12 @@ class Fish extends TankObject {
         const newY = this.y + this.velocityY;
         const newZ = this.z + this.velocityZ;
 
-        // Simple boundary checking
-        const margin = 50;
+        // Simple boundary checking - use actual canvas dimensions
+        const margin = this.width;
         const maxDepth = 100;
         const isBlocked = 
-            newX < margin || newX > 800 - margin ||
-            newY < margin || newY > 600 - margin ||
+            newX < margin || newX > this.canvasWidth - margin ||
+            newY < margin || newY > this.canvasHeight - margin ||
             newZ < -maxDepth || newZ > maxDepth;
 
         if (!isBlocked) {
@@ -149,8 +189,8 @@ class Fish extends TankObject {
             this.z = newZ;
         } else {
             // Apply avoidance force
-            const centerX = 400; // Assuming 800px width
-            const centerY = 300; // Assuming 600px height
+            const centerX = this.canvasWidth / 2;
+            const centerY = this.canvasHeight / 2;
             
             this.avoidanceForceX = (centerX - this.x) * 0.01;
             this.avoidanceForceY = (centerY - this.y) * 0.01;
@@ -211,6 +251,9 @@ class Fish extends TankObject {
     draw(ctx) {
         if (!this.sprite || !this.loaded || !this.animationData) return;
 
+        // Update canvas dimensions and scale
+        this.updateScale(ctx.canvas.width, ctx.canvas.height);
+
         // Safety checks for animation data
         const animations = this.animationData.animations[this.currentAnimation];
         if (!animations || !animations.length) {
@@ -230,9 +273,9 @@ class Fish extends TankObject {
             return;
         }
         
-        // Scale based on depth
-        const depthScale = 1 + (this.z / 200);
-        const currentScale = depthScale * 0.25; // Base scale is 0.25
+        // Use width and height that were updated in updateScale
+        const scaledWidth = this.width;
+        const scaledHeight = this.height;
         
         ctx.save();
         ctx.translate(this.x, this.y);
@@ -246,10 +289,7 @@ class Fish extends TankObject {
             ctx.scale(-1, 1);
         }
 
-        // Draw the fish
-        const scaledWidth = this.animationData.frameWidth * currentScale;
-        const scaledHeight = this.animationData.frameHeight * currentScale;
-        
+        // Draw the fish with improved visibility
         ctx.drawImage(
             this.sprite,
             frameData.x, frameData.y,
@@ -291,7 +331,7 @@ class Fish extends TankObject {
 
         if (closestFood) {
             this.currentFood = closestFood;
-            console.log('Fish detected food at distance:', closestDistance); // Debug log
+            console.log('Fish detected food at distance:', closestDistance);
         }
     }
 } 

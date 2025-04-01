@@ -71,13 +71,6 @@ class TankManager {
     }
 
     sortObjects() {
-        console.log('TankManager: Sorting objects - Before:', 
-            this.objects.map(o => ({
-                type: o.constructor.name,
-                z: o.z
-            }))
-        );
-        
         // Sort objects by z-index (back to front)
         // Make sure SandBed is always rendered first
         this.objects.sort((a, b) => {
@@ -86,7 +79,7 @@ class TankManager {
             return a.z - b.z;
         });
         
-        console.log('TankManager: Sorting objects - After:', 
+        console.log('TankManager: Objects sorted by z-depth:', 
             this.objects.map(o => ({
                 type: o.constructor.name,
                 z: o.z
@@ -94,28 +87,41 @@ class TankManager {
         );
     }
 
-    update(currentTime) {
-        // Calculate delta time
-        const deltaTime = currentTime - this.lastFrameTime;
-        this.lastFrameTime = currentTime;
+    update(deltaTime) {
+        // Ensure deltaTime is reasonable (prevent huge jumps if tab was inactive)
+        const cappedDeltaTime = Math.min(deltaTime, 100);
+        
+        // Update canvas dimensions for scaling calculations
+        this.width = this.canvas.width;
+        this.height = this.canvas.height;
 
         // Update food particles
         this.foodParticles = this.foodParticles.filter(food => {
-            food.update(deltaTime);
+            // Update tank dimensions for boundary checking
+            food.tankWidth = this.width;
+            food.tankHeight = this.height;
+            food.update(cappedDeltaTime);
             // Remove food if it's eaten or falls below tank
             return !food.eaten && food.y < this.height;
         });
 
         // Update hearts
         this.hearts = this.hearts.filter(heart => {
-            heart.update(deltaTime);
+            heart.update(cappedDeltaTime);
             // Remove hearts that have faded out
             return heart.opacity > 0;
         });
 
         // Update all objects and check for food
         for (const object of this.objects) {
-            object.update(deltaTime);
+            // First update the object's scale
+            if (object.updateScale) {
+                object.updateScale(this.width, this.height);
+            }
+            
+            // Then update its position and state
+            object.update(cappedDeltaTime);
+            
             // If it's a fish, make it check for food
             if (object instanceof Fish) {
                 object.detectFood(this.foodParticles);
@@ -126,30 +132,33 @@ class TankManager {
         this.sortObjects();
     }
 
-    draw() {
-        // Restore to initial state and save for next frame
-        this.ctx.restore();
-        this.ctx.save();
+    draw(ctx) {
+        // Recreate background gradient with current dimensions
+        const dpr = window.devicePixelRatio || 1;
+        const logicalWidth = this.width / dpr;
+        const logicalHeight = this.height / dpr;
         
-        // Clear canvas and draw background
-        this.ctx.clearRect(0, 0, this.width, this.height);
-        this.ctx.fillStyle = this.background;
-        this.ctx.fillRect(0, 0, this.width, this.height);
+        this.background = ctx.createLinearGradient(0, 0, 0, logicalHeight);
+        this.background.addColorStop(0, '#1a3c8c');   // Dark blue at top
+        this.background.addColorStop(1, '#2a5298');   // Lighter blue at bottom
+        
+        // Clear canvas and draw background (using logical coordinates)
+        ctx.fillStyle = this.background;
+        ctx.fillRect(0, 0, logicalWidth, logicalHeight);
 
         // Draw all objects in order (back to front)
         for (const object of this.objects) {
-            console.log('TankManager: Drawing', object.constructor.name);
-            object.draw(this.ctx);
+            object.draw(ctx);
         }
 
         // Draw food particles
         for (const food of this.foodParticles) {
-            food.draw(this.ctx);
+            food.draw(ctx);
         }
 
         // Draw hearts on top
         for (const heart of this.hearts) {
-            heart.draw(this.ctx);
+            heart.draw(ctx);
         }
     }
 
@@ -159,13 +168,11 @@ class TankManager {
         const margin = 50;
         if (x - width/2 < margin || x + width/2 > this.width - margin ||
             y - height/2 < margin || y + height/2 > this.height - margin) {
-            console.log('Position blocked: Out of bounds', {x, y, z});
             return true;
         }
 
         // Keep fish within reasonable depth bounds
         if (z < -100 || z > 100) {
-            console.log('Position blocked: Out of depth bounds', z);
             return true;
         }
 
@@ -180,7 +187,6 @@ class TankManager {
             if (object instanceof Castle && // Only check collision with certain objects
                 !testObject.isBehind(object) && // Only if we're not behind it
                 object.intersects(testObject)) {
-                console.log('Position blocked: Collision with castle');
                 return true;
             }
         }
@@ -209,9 +215,12 @@ class TankManager {
         
         // Tank dimensions for random positioning
         const margin = 50;
+        const centerX = this.width / 2;
+        const dropWidth = this.width * 0.4; // 40% of tank width around center
+        
         const dropZone = {
-            minX: margin,
-            maxX: this.width - margin,
+            minX: centerX - dropWidth/2,
+            maxX: centerX + dropWidth/2,
             y: margin, // Drop from near the top
             minZ: -50, // Minimum z-depth
             maxZ: 50   // Maximum z-depth

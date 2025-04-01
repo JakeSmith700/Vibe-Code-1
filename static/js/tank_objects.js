@@ -3,10 +3,33 @@ class TankObject {
         this.x = x;
         this.y = y;
         this.z = z; // z-depth: negative is further back, positive is closer
+        this.baseWidth = width;  // Store original size
+        this.baseHeight = height;
         this.width = width;
         this.height = height;
         this.sprite = null;
         this.loaded = false;
+        this.canvasWidth = 0;   // Will be updated
+        this.canvasHeight = 0;  // Will be updated
+    }
+
+    // New method to update sizes based on canvas dimensions
+    updateScale(canvasWidth, canvasHeight) {
+        this.canvasWidth = canvasWidth;
+        this.canvasHeight = canvasHeight;
+        
+        // Base scale factor from canvas size (use smaller dimension)
+        const baseScale = Math.min(canvasWidth, canvasHeight) / 800;
+        // Depth scaling
+        const depthScale = 1 + (this.z / 200);
+        // Combined scaling
+        const scale = baseScale * depthScale;
+        
+        // Update current dimensions
+        this.width = this.baseWidth * scale;
+        this.height = this.baseHeight * scale;
+        
+        return scale;
     }
 
     update(deltaTime) {
@@ -16,11 +39,9 @@ class TankObject {
     draw(ctx) {
         if (!this.sprite || !this.loaded) return;
         
-        // Calculate scale based on depth
-        const depthScale = 1 + (this.z / 200);
-        const scaledWidth = this.width * depthScale;
-        const scaledHeight = this.height * depthScale;
-
+        // Update scaling before drawing
+        const scale = this.updateScale(ctx.canvas.width, ctx.canvas.height);
+        
         ctx.save();
         // Enable image smoothing for better quality
         ctx.imageSmoothingEnabled = true;
@@ -32,8 +53,8 @@ class TankObject {
         ctx.translate(this.x, this.y);
         ctx.drawImage(
             this.sprite,
-            -scaledWidth/2, -scaledHeight/2,
-            scaledWidth, scaledHeight
+            -this.width/2, -this.height/2,
+            this.width, this.height
         );
         ctx.restore();
     }
@@ -64,7 +85,7 @@ class TankObject {
 
 class Castle extends TankObject {
     constructor(x, y, z) {
-        super(x, y, z, 200, 300); // Adjust size as needed
+        super(x, y, z, 400, 600); // 2x larger (was 200, 300)
         this.sprite = new Image();
         this.sprite.src = 'assets/castle/castle.png';
         this.sprite.onload = () => {
@@ -105,8 +126,9 @@ class Castle extends TankObject {
 
 class SandBed extends TankObject {
     constructor(width, height) {
-        // Position the sand bed at the bottom of the tank, but not at the edge
-        super(width/2, height - 100, -100, width, 200);
+        // Position the sand bed at the bottom of the tank, full width, proper height
+        super(width/2, height, -100, width, height * 0.3);
+        this.canvasWidth = width;
         this.canvasHeight = height;
         this.sprite = new Image();
         this.sprite.src = 'assets/sand/sand.png';
@@ -120,71 +142,79 @@ class SandBed extends TankObject {
             console.error('SandBed: Failed to load texture:', error);
         };
         
-        // Initialize ripple parameters - just a few subtle ones near the bottom
+        // Initialize ripple parameters
         this.ripples = [];
-        for (let i = 0; i < 3; i++) {  // Fewer ripples
+        const numRipples = Math.max(3, Math.floor(width / 300)); // Scale number of ripples with width
+        for (let i = 0; i < numRipples; i++) {
             this.ripples.push({
                 x: Math.random() * width,
-                y: height - 150 + Math.random() * 50,  // Keep ripples near the bottom but visible
+                y: height - height * 0.2 + Math.random() * (height * 0.1),
                 phase: Math.random() * Math.PI * 2,
-                frequency: 0.3 + Math.random() * 0.2,  // Slower, gentler movement
-                size: 60 + Math.random() * 40         // Smaller sizes
+                frequency: 0.3 + Math.random() * 0.2,
+                size: width * 0.05 + Math.random() * (width * 0.03)
             });
         }
     }
 
+    updateScale(canvasWidth, canvasHeight) {
+        this.canvasWidth = canvasWidth;
+        this.canvasHeight = canvasHeight;
+        
+        // Always ensure sand bed covers full width
+        this.width = canvasWidth;
+        // Height is a percentage of canvas height
+        this.height = canvasHeight * 0.3;
+        // Y position at bottom of canvas
+        this.y = canvasHeight - this.height / 2;
+        
+        return 1.0; // Return scale factor of 1 as we're manually setting dimensions
+    }
+
     draw(ctx) {
-        if (!this.sprite || !this.loaded) {
-            console.log('SandBed: Not ready to draw - sprite loaded:', !!this.sprite, 'loaded:', this.loaded);
-            return;
-        }
+        if (!this.sprite || !this.loaded) return;
         
         try {
             ctx.save();
             
-            // Draw from the bottom of the tank
-            const extraHeight = 50;
-            const sandY = this.canvasHeight - this.height - 50; // Move up by 50px for better visibility
+            // Update scaling to ensure proper dimensions
+            this.updateScale(ctx.canvas.width, ctx.canvas.height);
             
-            // First draw a solid sand-colored background
+            // Calculate sand position to ensure it's at the bottom
+            const sandY = this.canvasHeight - this.height;
+            
+            // Draw base sand color
             ctx.fillStyle = '#e6d5ac';
-            ctx.fillRect(0, sandY, this.width, this.height + extraHeight);
+            ctx.fillRect(0, sandY, this.width, this.height);
             
             // Create and draw the sand pattern
-            const pattern = ctx.createPattern(this.sprite, 'repeat-x');
-            if (!pattern) {
-                console.error('SandBed: Failed to create pattern');
-                return;
-            }
+            const pattern = ctx.createPattern(this.sprite, 'repeat');
+            if (!pattern) return;
 
-            // Draw the sand texture with multiply blend for better visibility
+            // Draw sand texture
             ctx.globalCompositeOperation = 'multiply';
             ctx.fillStyle = pattern;
-            ctx.fillRect(0, sandY, this.width, this.height + extraHeight);
+            ctx.fillRect(0, sandY, this.width, this.height);
             
-            // Reset blend mode for the water effects
+            // Reset blend mode for effects
             ctx.globalCompositeOperation = 'source-over';
             
-            // Draw subtle ripples
+            // Draw ripples scaled to canvas size
             const time = performance.now() / 1000;
-            
             this.ripples.forEach((ripple) => {
                 const wavePhase = time * ripple.frequency + ripple.phase;
-                const centerX = ripple.x + Math.sin(time * 0.2) * 30;  // Gentler movement
-                const centerY = ripple.y + Math.cos(time * 0.15) * 10; // Very subtle vertical movement
+                const centerX = (ripple.x / this.width) * ctx.canvas.width + Math.sin(time * 0.2) * (this.width * 0.02);
+                const centerY = sandY + (ripple.y - (this.canvasHeight - this.height)) / this.height * this.height;
                 
-                // Draw subtle concentric ripples
-                for (let i = 0; i < 2; i++) {  // Fewer rings
+                for (let i = 0; i < 2; i++) {
                     const baseRadius = ripple.size * (1 + Math.sin(wavePhase) * 0.1);
-                    const radius = baseRadius + i * 30;
+                    const radius = baseRadius * (ctx.canvas.width / 800) + i * (this.width * 0.02);
                     
                     const gradient = ctx.createRadialGradient(
                         centerX, centerY, radius * 0.5,
                         centerX, centerY, radius
                     );
                     
-                    // Much more subtle gradient
-                    gradient.addColorStop(0, 'rgba(255, 255, 255, 0.1)');  // Less opaque
+                    gradient.addColorStop(0, 'rgba(255, 255, 255, 0.1)');
                     gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
                     
                     ctx.fillStyle = gradient;
@@ -194,26 +224,14 @@ class SandBed extends TankObject {
                 }
             });
             
-            // Add subtle water overlay gradient
-            const gradient = ctx.createLinearGradient(0, sandY - 50, 0, sandY + 150);
+            // Add water overlay
+            const gradient = ctx.createLinearGradient(0, sandY - this.height * 0.2, 0, sandY + this.height * 0.5);
             gradient.addColorStop(0, 'rgba(42, 82, 152, 0.3)');
             gradient.addColorStop(0.5, 'rgba(42, 82, 152, 0.15)');
             gradient.addColorStop(1, 'rgba(42, 82, 152, 0.1)');
             
             ctx.fillStyle = gradient;
-            ctx.fillRect(0, sandY - 50, this.width, this.height + 100);
-            
-            // Add very subtle caustics
-            ctx.globalCompositeOperation = 'overlay';
-            for (let i = 0; i < 5; i++) {  // Fewer caustics
-                const x = (Math.sin(time * 0.5 + i) * 0.5 + 0.5) * this.width;
-                const y = sandY + (Math.cos(time * 0.4 + i) * 30);
-                const gradient = ctx.createRadialGradient(x, y, 0, x, y, 80);
-                gradient.addColorStop(0, 'rgba(255, 255, 255, 0.05)');  // Much less intense
-                gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
-                ctx.fillStyle = gradient;
-                ctx.fillRect(0, sandY, this.width, this.height);
-            }
+            ctx.fillRect(0, sandY - this.height * 0.2, this.width, this.height * 1.2);
             
             ctx.restore();
         } catch (error) {
@@ -224,10 +242,18 @@ class SandBed extends TankObject {
 
 class SeabedDecoration extends TankObject {
     constructor(x, y, type) {
-        super(x, y, -90, 50, 50);
+        // Base sizes relative to canvas size (will be updated in updateScale)
+        // Making decorations 4x larger
+        const baseSize = {
+            0: { w: 160, h: 240 },  // Seaweed (4x larger)
+            1: { w: 160, h: 120 },  // Clam (4x larger)
+            2: { w: 200, h: 160 }   // Rock (4x larger)
+        }[type] || { w: 160, h: 160 };
+        
+        super(x, y, -90, baseSize.w, baseSize.h);
+        this.type = type;
         this.sprite = new Image();
         this.sprite.src = 'assets/seabed/seabed.png';
-        this.type = type;
         this.currentFrame = 0;
         this.totalFrames = 3;
         this.animationTimer = 0;
@@ -244,7 +270,6 @@ class SeabedDecoration extends TankObject {
                 this.animationData = data;
                 this.frameWidth = data.frameWidth;
                 this.frameHeight = data.frameHeight;
-                console.log(`SeabedDecoration: Animation data loaded for type ${this.type}`);
             })
             .catch(error => {
                 console.error('SeabedDecoration: Failed to load animation data:', error);
@@ -257,45 +282,23 @@ class SeabedDecoration extends TankObject {
             canvas.height = this.sprite.height;
             const ctx = canvas.getContext('2d');
             
-            // Draw the original sprite
             ctx.drawImage(this.sprite, 0, 0);
             
-            // Get the image data
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             const data = imageData.data;
             
-            // Process each pixel
             for (let i = 0; i < data.length; i += 4) {
-                const r = data[i];
-                const g = data[i + 1];
-                const b = data[i + 2];
-                
-                // Check if pixel is white or very light
-                if (r > 240 && g > 240 && b > 240) {
-                    data[i + 3] = 0; // Set alpha to 0
+                if (data[i] > 240 && data[i + 1] > 240 && data[i + 2] > 240) {
+                    data[i + 3] = 0;
                 }
             }
             
-            // Put the processed image data back
             ctx.putImageData(imageData, 0, 0);
             
-            // Create a new image with the processed data
             this.processedSprite = new Image();
             this.processedSprite.src = canvas.toDataURL();
             this.processedSprite.onload = () => {
-                // Adjust size based on type
-                if (this.type === 0) { // Seaweed
-                    this.width = 40;
-                    this.height = 60;
-                } else if (this.type === 1) { // Clam
-                    this.width = 40;
-                    this.height = 30;
-                } else { // Rock
-                    this.width = 50;
-                    this.height = 40;
-                }
                 this.loaded = true;
-                console.log(`SeabedDecoration: Type ${this.type} loaded and processed successfully`);
             };
         };
     }
@@ -335,15 +338,18 @@ class SeabedDecoration extends TankObject {
         try {
             ctx.save();
             
-            // Get the current frame data
+            // Update scaling
+            const scale = this.updateScale(ctx.canvas.width, ctx.canvas.height);
+            
+            // Get current frame data
             const frameData = this.animationData.types[this.type].frames[this.currentFrame];
             
-            // Draw the decoration using the processed sprite
+            // Draw the decoration with proper scaling
             ctx.drawImage(
                 this.processedSprite,
                 frameData.x, frameData.y,
                 frameData.width, frameData.height,
-                this.x - this.width / 2,
+                this.x - this.width/2,
                 this.y - this.height,
                 this.width, this.height
             );
@@ -357,7 +363,7 @@ class SeabedDecoration extends TankObject {
 
 class FoodParticle extends TankObject {
     constructor(x, y, z) {
-        super(x, y, z, 10, 10); // Slightly larger size for food
+        super(x, y, z, 10, 10); // Base size for food
         this.wobbleSpeed = 0.3; // Slower wobble
         this.wobbleAmount = 3; // More pronounced wobble
         this.fallSpeed = 50; // Fall speed in pixels per second
@@ -366,6 +372,7 @@ class FoodParticle extends TankObject {
         this.eaten = false;
         this.tankWidth = 0;  // Will be set by TankManager
         this.tankHeight = 0; // Will be set by TankManager
+        this.baseSize = 10;  // Base size to scale from
     }
 
     update(deltaTime) {
@@ -385,14 +392,19 @@ class FoodParticle extends TankObject {
 
         // Move in z-dimension with a sinusoidal pattern
         this.z = Math.sin(performance.now() * 0.001 + this.zDriftPhase) * this.zDriftSpeed;
+        
+        // Update size based on z-position - objects closer to viewer (higher z) appear larger
+        const depthScale = 1 + (this.z / 100); // More pronounced z-scaling
+        this.width = this.baseSize * depthScale;
+        this.height = this.baseSize * depthScale;
     }
 
     draw(ctx) {
         ctx.save();
         
         // Calculate scale based on z-depth for 2.5D effect
-        const depthScale = 1 + (this.z / 200);
-        const scaledSize = this.width * depthScale;
+        const depthScale = 1 + (this.z / 100); // More pronounced z-scaling
+        const scaledSize = this.baseSize * depthScale;
         
         // Draw food particle with depth scaling
         ctx.fillStyle = '#ff9f43'; // Orange color for fish food
@@ -405,7 +417,7 @@ class FoodParticle extends TankObject {
         ctx.shadowBlur = 5 * depthScale;
         ctx.fillStyle = 'rgba(255, 165, 2, 0.3)';
         ctx.beginPath();
-        ctx.arc(this.x, this.y, (scaledSize/2 + 2) * depthScale, 0, Math.PI * 2);
+        ctx.arc(this.x, this.y, (scaledSize/2 + 3) * depthScale, 0, Math.PI * 2);
         ctx.fill();
         
         ctx.restore();
