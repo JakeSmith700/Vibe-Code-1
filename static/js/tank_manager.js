@@ -1,38 +1,57 @@
 class TankManager {
-    constructor(width, height, ctx) {
-        console.log('TankManager: Initializing with dimensions', width, 'x', height);
-        this.width = width;
-        this.height = height;
-        this.ctx = ctx;
-        this.objects = [];
-        this.lastFrameTime = 0;
+    constructor(canvas) {
+        this.canvas = canvas;
+        this.width = canvas.width;
+        this.height = canvas.height;
         
-        // Enable image smoothing
+        // Get the context after ensuring canvas exists
+        this.ctx = this.canvas.getContext('2d');
+        if (!this.ctx) {
+            console.error('Failed to get canvas context');
+            return;
+        }
+        
+        // Set image smoothing after context is confirmed
         this.ctx.imageSmoothingEnabled = true;
         this.ctx.imageSmoothingQuality = 'high';
-
-        // Create gradient background
-        this.createBackground();
-        console.log('TankManager: Initialization complete');
-
+        
+        // Save initial canvas state
+        this.ctx.save();
+        
+        // Initialize arrays
+        this.objects = [];
         this.foodParticles = [];
         this.hearts = [];
-        this.maxFoodParticles = 3; // Maximum number of food particles allowed
         
-        // Listen for feed button clicks
-        document.addEventListener('feedFish', () => this.dropFood());
+        // Create background gradient
+        this.createBackground();
         
-        // Listen for heart creation events
-        document.addEventListener('createHeart', (e) => {
-            const heart = new Heart(e.detail.x, e.detail.y);
+        // Initialize lastFrameTime
+        this.lastFrameTime = performance.now();
+        
+        // Set maximum food particles
+        this.maxFoodParticles = 10;
+        
+        // Add event listeners for food and hearts
+        this.canvas.addEventListener('feedFish', (event) => {
+            console.log('TankManager: Feed event received');
+            this.dropFood();
+        });
+        
+        document.addEventListener('createHeart', (event) => {
+            console.log('TankManager: Create heart event received at:', event.detail.x, event.detail.y);
+            const heart = new Heart(event.detail.x, event.detail.y);
             this.hearts.push(heart);
         });
+        
+        console.log('TankManager: Initialization complete');
     }
 
     createBackground() {
         this.background = this.ctx.createLinearGradient(0, 0, 0, this.height);
         this.background.addColorStop(0, '#1a3c8c');   // Dark blue at top
         this.background.addColorStop(1, '#2a5298');   // Lighter blue at bottom
+        console.log('TankManager: Background gradient created');
     }
 
     addObject(object) {
@@ -47,10 +66,18 @@ class TankManager {
         const index = this.objects.indexOf(object);
         if (index > -1) {
             this.objects.splice(index, 1);
+            console.log('TankManager: Removed object', object.constructor.name);
         }
     }
 
     sortObjects() {
+        console.log('TankManager: Sorting objects - Before:', 
+            this.objects.map(o => ({
+                type: o.constructor.name,
+                z: o.z
+            }))
+        );
+        
         // Sort objects by z-index (back to front)
         // Make sure SandBed is always rendered first
         this.objects.sort((a, b) => {
@@ -58,6 +85,13 @@ class TankManager {
             if (b instanceof SandBed) return 1;
             return a.z - b.z;
         });
+        
+        console.log('TankManager: Sorting objects - After:', 
+            this.objects.map(o => ({
+                type: o.constructor.name,
+                z: o.z
+            }))
+        );
     }
 
     update(currentTime) {
@@ -93,6 +127,10 @@ class TankManager {
     }
 
     draw() {
+        // Restore to initial state and save for next frame
+        this.ctx.restore();
+        this.ctx.save();
+        
         // Clear canvas and draw background
         this.ctx.clearRect(0, 0, this.width, this.height);
         this.ctx.fillStyle = this.background;
@@ -167,23 +205,26 @@ class TankManager {
 
         // Calculate how many particles we can still add
         const remainingSlots = this.maxFoodParticles - this.foodParticles.length;
-        const numParticles = Math.min(remainingSlots, Math.floor(Math.random() * 5) + 2); // Random 2-6 particles
+        const numParticles = Math.min(remainingSlots, Math.floor(Math.random() * 3) + 2);
         
         // Tank dimensions for random positioning
-        const tankWidth = this.width;
-        const tankHeight = this.height;
-        const maxDepth = 100; // Maximum depth for food particles
+        const margin = 50;
+        const dropZone = {
+            minX: margin,
+            maxX: this.width - margin,
+            y: margin, // Drop from near the top
+            minZ: -50, // Minimum z-depth
+            maxZ: 50   // Maximum z-depth
+        };
         
         for (let i = 0; i < numParticles; i++) {
-            // Random position across the tank
-            const x = Math.random() * tankWidth;
-            const y = 50 + Math.random() * 100; // Start between 50-150 from top
-            const z = -maxDepth + Math.random() * (2 * maxDepth); // Random depth
-            
-            const food = new FoodParticle(x, y);
-            food.z = z; // Set the depth
+            const x = dropZone.minX + Math.random() * (dropZone.maxX - dropZone.minX);
+            const z = dropZone.minZ + Math.random() * (dropZone.maxZ - dropZone.minZ);
+            const food = new FoodParticle(x, dropZone.y, z);
+            food.tankWidth = this.width;
+            food.tankHeight = this.height;
             this.foodParticles.push(food);
-            console.log('Dropped food particle:', i + 1, 'of', numParticles, 'at x:', x, 'y:', y, 'z:', z);
+            console.log('Dropped food particle at:', x, dropZone.y, z);
         }
     }
 } 

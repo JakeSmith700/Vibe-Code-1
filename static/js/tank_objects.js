@@ -66,7 +66,7 @@ class Castle extends TankObject {
     constructor(x, y, z) {
         super(x, y, z, 200, 300); // Adjust size as needed
         this.sprite = new Image();
-        this.sprite.src = '/assets/castle/castle.png';
+        this.sprite.src = 'assets/castle/castle.png';
         this.sprite.onload = () => {
             this.loaded = true;
             // Create a temporary canvas to process the image
@@ -105,15 +105,19 @@ class Castle extends TankObject {
 
 class SandBed extends TankObject {
     constructor(width, height) {
-        // Position the sand bed at the bottom of the tank
-        super(width/2, height, -100, width, 200);
+        // Position the sand bed at the bottom of the tank, but not at the edge
+        super(width/2, height - 100, -100, width, 200);
         this.canvasHeight = height;
         this.sprite = new Image();
-        this.sprite.src = '/assets/sand/sand.png';
+        this.sprite.src = 'assets/sand/sand.png';
         
         this.sprite.onload = () => {
             console.log('SandBed: Texture loaded successfully');
             this.loaded = true;
+        };
+        
+        this.sprite.onerror = (error) => {
+            console.error('SandBed: Failed to load texture:', error);
         };
         
         // Initialize ripple parameters - just a few subtle ones near the bottom
@@ -121,7 +125,7 @@ class SandBed extends TankObject {
         for (let i = 0; i < 3; i++) {  // Fewer ripples
             this.ripples.push({
                 x: Math.random() * width,
-                y: height - 100 + Math.random() * 50,  // Keep ripples near the bottom
+                y: height - 150 + Math.random() * 50,  // Keep ripples near the bottom but visible
                 phase: Math.random() * Math.PI * 2,
                 frequency: 0.3 + Math.random() * 0.2,  // Slower, gentler movement
                 size: 60 + Math.random() * 40         // Smaller sizes
@@ -130,14 +134,17 @@ class SandBed extends TankObject {
     }
 
     draw(ctx) {
-        if (!this.sprite || !this.loaded) return;
+        if (!this.sprite || !this.loaded) {
+            console.log('SandBed: Not ready to draw - sprite loaded:', !!this.sprite, 'loaded:', this.loaded);
+            return;
+        }
         
         try {
             ctx.save();
             
             // Draw from the bottom of the tank
             const extraHeight = 50;
-            const sandY = this.canvasHeight - this.height;
+            const sandY = this.canvasHeight - this.height - 50; // Move up by 50px for better visibility
             
             // First draw a solid sand-colored background
             ctx.fillStyle = '#e6d5ac';
@@ -219,7 +226,7 @@ class SeabedDecoration extends TankObject {
     constructor(x, y, type) {
         super(x, y, -90, 50, 50);
         this.sprite = new Image();
-        this.sprite.src = '/assets/seabed/seabed.png';
+        this.sprite.src = 'assets/seabed/seabed.png';
         this.type = type;
         this.currentFrame = 0;
         this.totalFrames = 3;
@@ -349,32 +356,58 @@ class SeabedDecoration extends TankObject {
 }
 
 class FoodParticle extends TankObject {
-    constructor(x, y) {
-        super(x, y, 0, 10, 10); // Slightly larger size for food
+    constructor(x, y, z) {
+        super(x, y, z, 10, 10); // Slightly larger size for food
         this.wobbleSpeed = 0.3; // Slower wobble
         this.wobbleAmount = 3; // More pronounced wobble
-        this.fallSpeed = 0.3; // Slower fall speed
+        this.fallSpeed = 50; // Fall speed in pixels per second
+        this.zDriftSpeed = 20; // Z movement speed
+        this.zDriftPhase = Math.random() * Math.PI * 2; // Random starting phase
         this.eaten = false;
+        this.tankWidth = 0;  // Will be set by TankManager
+        this.tankHeight = 0; // Will be set by TankManager
     }
 
     update(deltaTime) {
-        // Wobble horizontally
-        this.x += Math.sin(this.wobbleSpeed * deltaTime) * this.wobbleAmount;
+        // Normalize deltaTime to seconds and cap it
+        const dt = Math.min(deltaTime / 1000, 0.1);
         
-        // Fall downward
-        this.y += this.fallSpeed;
+        // Wobble horizontally with normalized time
+        this.x += Math.sin(performance.now() * this.wobbleSpeed / 1000) * this.wobbleAmount * dt;
+        
+        // Add bounds checking
+        const margin = this.width;
+        if (this.tankWidth && this.x < margin) this.x = margin;
+        if (this.tankWidth && this.x > this.tankWidth - margin) this.x = this.tankWidth - margin;
+        
+        // Fall downward with normalized time
+        this.y += this.fallSpeed * dt;
+
+        // Move in z-dimension with a sinusoidal pattern
+        this.z = Math.sin(performance.now() * 0.001 + this.zDriftPhase) * this.zDriftSpeed;
     }
 
     draw(ctx) {
         ctx.save();
+        
+        // Calculate scale based on z-depth for 2.5D effect
+        const depthScale = 1 + (this.z / 200);
+        const scaledSize = this.width * depthScale;
+        
+        // Draw food particle with depth scaling
+        ctx.fillStyle = '#ff9f43'; // Orange color for fish food
         ctx.beginPath();
-        ctx.arc(this.x, this.y, this.width/2, 0, Math.PI * 2);
-        ctx.fillStyle = '#FFA500'; // Orange color for food
+        ctx.arc(this.x, this.y, scaledSize/2, 0, Math.PI * 2);
         ctx.fill();
-        // Add a glow effect to make food more visible
-        ctx.shadowColor = '#FFA500';
-        ctx.shadowBlur = 5;
+        
+        // Add a slight glow effect, also scaled with depth
+        ctx.shadowColor = '#ffa502';
+        ctx.shadowBlur = 5 * depthScale;
+        ctx.fillStyle = 'rgba(255, 165, 2, 0.3)';
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, (scaledSize/2 + 2) * depthScale, 0, Math.PI * 2);
         ctx.fill();
+        
         ctx.restore();
     }
 }
@@ -386,7 +419,7 @@ class Heart extends TankObject {
         this.opacity = 1;
         this.fadeSpeed = 0.005; // Slower fade
         this.sprite = new Image();
-        this.sprite.src = '/assets/heart/heart.png';
+        this.sprite.src = 'assets/heart/heart.png';
         this.sprite.onload = () => {
             this.loaded = true;
             console.log('Heart: Sprite loaded successfully');

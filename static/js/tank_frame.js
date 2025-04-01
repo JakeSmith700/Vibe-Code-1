@@ -17,6 +17,62 @@ class TankFrame {
         this.feedTimeout = null;
         this.feedCooldown = false;
         
+        // Add cheat code tracking
+        this.cheatSequence = [];
+        this.correctSequence = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'a', 'b'];
+        this.lastKeyTime = 0;
+        this.keyTimeout = 2000; // 2 seconds to complete the sequence
+        
+        // Setup key listener for cheat code
+        document.addEventListener('keydown', (e) => {
+            const currentTime = performance.now();
+            
+            // Reset sequence if too much time has passed
+            if (currentTime - this.lastKeyTime > this.keyTimeout) {
+                this.cheatSequence = [];
+            }
+            
+            // Update last key time
+            this.lastKeyTime = currentTime;
+            
+            // Add key to sequence
+            const key = e.key.toLowerCase();
+            this.cheatSequence.push(key);
+            
+            // Keep only the last 6 keys
+            if (this.cheatSequence.length > 6) {
+                this.cheatSequence.shift();
+            }
+            
+            // Check if sequence matches
+            const isMatch = this.cheatSequence.join(',') === 
+                this.correctSequence.map(k => k.toLowerCase()).join(',');
+            
+            if (isMatch) {
+                console.log('Cheat code activated!');
+                // Reset feed timer
+                if (this.feedTimeout) {
+                    clearTimeout(this.feedTimeout);
+                }
+                this.canFeed = true;
+                this.feedButton.classList.remove('disabled');
+                this.feedButton.innerHTML = '🐟 Feed';
+                this.feedCooldown = false;
+                
+                // Clear the cookie if it exists
+                this.setCookie('feedCooldownEnd', '', -1);
+                
+                // Visual feedback
+                this.feedButton.style.animation = 'pulse 0.5s';
+                setTimeout(() => {
+                    this.feedButton.style.animation = '';
+                }, 500);
+                
+                // Reset sequence
+                this.cheatSequence = [];
+            }
+        });
+        
         // Load available tracks
         this.loadTracks();
         
@@ -33,7 +89,7 @@ class TankFrame {
 
     loadTracks() {
         // We'll populate this with actual tracks from the server
-        fetch('/assets/music/tracks.json')
+        fetch('assets/music/tracks.json')
             .then(response => response.json())
             .then(data => {
                 this.tracks = data;
@@ -45,13 +101,8 @@ class TankFrame {
     }
 
     loadCredits() {
-        fetch('/credits.txt')
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Failed to load credits file');
-                }
-                return response.text();
-            })
+        fetch('credits.txt')
+            .then(response => response.text())
             .then(text => {
                 this.credits = text;
                 console.log('Credits loaded successfully');
@@ -316,9 +367,14 @@ class TankFrame {
     handleFeed() {
         if (this.feedCooldown) return;
         
-        // Emit feed event
-        const feedEvent = new CustomEvent('feedFish');
-        document.dispatchEvent(feedEvent);
+        // Emit feed event with coordinates
+        const feedEvent = new CustomEvent('feedFish', {
+            detail: {
+                x: this.width / 2,
+                y: 50 // Feed from near the top
+            }
+        });
+        this.canvas.dispatchEvent(feedEvent);
         
         // Start cooldown
         this.feedCooldown = true;
@@ -333,61 +389,55 @@ class TankFrame {
     }
 
     draw(ctx) {
-        // Draw wooden frame
-        ctx.save();
+        // Draw tank background
+        ctx.fillStyle = '#1e3c72';  // Deep blue background
+        ctx.fillRect(0, 0, this.width, this.height);
         
-        // Create wooden texture gradient
-        const frameGradient = ctx.createLinearGradient(0, 0, this.frameThickness, this.frameThickness);
-        frameGradient.addColorStop(0, '#8B4513');   // Saddle brown
-        frameGradient.addColorStop(0.5, '#DEB887'); // Burly wood
-        frameGradient.addColorStop(1, '#8B4513');   // Saddle brown
+        // Add a gradient overlay for water effect
+        const gradient = ctx.createLinearGradient(0, 0, 0, this.height);
+        gradient.addColorStop(0, 'rgba(42, 82, 152, 0.6)');
+        gradient.addColorStop(1, 'rgba(0, 0, 0, 0.4)');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, this.width, this.height);
         
-        ctx.fillStyle = frameGradient;
+        // Draw frame
+        ctx.fillStyle = '#4a4a4a';  // Frame color
         
-        // Draw frame pieces
-        // Top
+        // Top frame
         ctx.fillRect(0, 0, this.width, this.frameThickness);
-        // Bottom
+        
+        // Bottom frame
         ctx.fillRect(0, this.height - this.frameThickness, this.width, this.frameThickness);
-        // Left
+        
+        // Left frame
         ctx.fillRect(0, 0, this.frameThickness, this.height);
-        // Right
+        
+        // Right frame
         ctx.fillRect(this.width - this.frameThickness, 0, this.frameThickness, this.height);
         
-        // Add some wood grain texture
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)';
-        ctx.lineWidth = 1;
-        
-        // Horizontal grain
-        for (let i = 0; i < this.width; i += 5) {
-            // Top frame grain
-            ctx.beginPath();
-            ctx.moveTo(i, 0);
-            ctx.lineTo(i + 10, this.frameThickness);
-            ctx.stroke();
-            
-            // Bottom frame grain
-            ctx.beginPath();
-            ctx.moveTo(i, this.height - this.frameThickness);
-            ctx.lineTo(i + 10, this.height);
-            ctx.stroke();
-        }
-        
-        // Vertical grain
-        for (let i = 0; i < this.height; i += 5) {
-            // Left frame grain
-            ctx.beginPath();
-            ctx.moveTo(0, i);
-            ctx.lineTo(this.frameThickness, i + 10);
-            ctx.stroke();
-            
-            // Right frame grain
-            ctx.beginPath();
-            ctx.moveTo(this.width - this.frameThickness, i);
-            ctx.lineTo(this.width, i + 10);
-            ctx.stroke();
-        }
-        
+        // Add inner shadow for depth
+        ctx.save();
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(
+            this.frameThickness, 
+            this.frameThickness, 
+            this.width - 2 * this.frameThickness, 
+            this.height - 2 * this.frameThickness
+        );
         ctx.restore();
     }
-} 
+}
+
+// Add CSS animation for visual feedback
+const style = document.createElement('style');
+style.textContent = `
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+}
+`;
+document.head.appendChild(style); 
