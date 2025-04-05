@@ -35,6 +35,7 @@
             border-radius: 20px;
             backdrop-filter: blur(10px);
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            position: relative;
         }
 
         h1 {
@@ -64,11 +65,49 @@
             text-decoration: none;
             transition: transform 0.3s ease, box-shadow 0.3s ease;
             cursor: pointer;
+            margin-bottom: 15px;
         }
 
         .cta-button:hover {
             transform: translateY(-3px);
             box-shadow: 0 5px 15px rgba(74, 144, 226, 0.4);
+        }
+        
+        .link-group {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .changelog-link {
+            color: #4a90e2;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 1rem;
+            transition: color 0.3s ease;
+        }
+        
+        .changelog-link:hover {
+            color: #67b26f;
+            text-decoration: underline;
+        }
+        
+        .version-badge {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(45deg, #4a90e2, #67b26f);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 5px;
         }
 
         .features {
@@ -111,15 +150,28 @@
             .features {
                 grid-template-columns: 1fr;
             }
+            
+            .version-badge {
+                position: relative;
+                top: 0;
+                right: 0;
+                margin: 0 auto 20px;
+                display: inline-flex;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
+        <div class="version-badge">🚀 Version 1.1</div>
         <h1>Pasha's Mind</h1>
         <p>Welcome to my digital space where creativity meets technology. Explore my virtual fishtank and immerse yourself in a world of interactive experiences.</p>
         
         <a href="fishtank.html" class="cta-button">Enter the Fishtank</a>
+        
+        <div class="link-group">
+            <a href="changelog.html" class="changelog-link">📋 View Changelog</a>
+        </div>
         
         <div class="features">
             <div class="feature">
